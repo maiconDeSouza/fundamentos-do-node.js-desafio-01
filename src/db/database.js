@@ -1,37 +1,32 @@
 import fs from "node:fs/promises"
 
 const dataBasePath = new URL('db.json', import.meta.url)
-let dbm = {}
-async function db(){
-     dbm = await readDB()
-}
-db()
 
-export function database(){
-    return{
-        createTasks
-    }
-}
+export class Database{
+    #database = []
 
-
-async function createTasks(id, title, description){
-    const task = {
-        id,
-        title,
-        description
+    constructor(){
+        fs.readFile(dataBasePath, 'utf8').then(data => {
+            this.#database = JSON.parse(data)
+        }).catch(() => {
+            this.#parsist()
+        })
     }
 
-    db.push(task)
-
-    await fs.writeFile(dataBasePath, JSON.stringify(db, null, 2))
-}
-
-
-async function readDB(){
-    const db = JSON.parse(await fs.readFile(dataBasePath, 'utf8'))
-
-    if(!db){
-        fs.writeFile(dataBasePath, JSON.stringify([], null, 2))
+    #parsist(){
+        fs.writeFile(dataBasePath, JSON.stringify(this.#database, null, 2))
     }
 
+    insert(task){
+        this.#database.push(task)
+        this.#parsist()
+    }
+
+    get(){
+        return this.#database
+    }
+
+    update(tasks){
+        fs.writeFile(dataBasePath, JSON.stringify(tasks, null, 2))
+    }
 }
