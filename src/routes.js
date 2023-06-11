@@ -1,38 +1,23 @@
-import { randomUUID } from "node:crypto"
+import fs from 'node:fs';
+import { parse } from 'csv-parse'
+
 
 import { Database } from "./db/database.js"
 import { buildRoutePath } from "./utils/build-router-path.js"
 import { dataBuild } from "./utils/dataBuild.js"
+import { routeFactory } from "./utils/routeFactory.js"
+import { taskFactory } from './utils/ taskFactory.js';
 
 const database = new Database()
 
 
-export const routes = [
-    {
-        method: "POST",
-        path: buildRoutePath("/tasks"),
-        handler: createTask
-    },
-    {
-        method: "GET",
-        path: buildRoutePath("/tasks"),
-        handler: getTasks
-    },
-    {
-        method: "PUT",
-        path: buildRoutePath("/tasks/:id"),
-        handler: updateTasks
-    },
-    {
-        method: "DELETE",
-        path: buildRoutePath("/tasks/:id"),
-        handler: deleteTasks
-    },
-    {
-        method: "PATCH",
-        path: buildRoutePath("/tasks/:id/:done"),
-        handler: done
-    }
+export const routes = [ 
+    routeFactory("POST", buildRoutePath("/tasks"), createTask),
+    routeFactory("GET", buildRoutePath("/tasks"), getTasks),
+    routeFactory("PUT", buildRoutePath("/tasks/:id"), updateTasks),
+    routeFactory("DELETE", buildRoutePath("/tasks/:id"), deleteTasks),
+    routeFactory("PATCH", buildRoutePath("/tasks/:id/:done"), done),
+    routeFactory("POST", buildRoutePath("/multipart/form-data"), csv)
 ]
 
 
@@ -48,28 +33,24 @@ function createTask(req, res){
         }
     })
 
-    const task = {
-        id: randomUUID(),
-        title,
-        description,
-        completed_at: null,
-        created_at: dataBuild(),
-        updated_at: dataBuild()
-    }
+    const task = taskFactory(title, description)
 
     try {
         database.insert(task)
         res.writeHead(201).end()
-    } catch (error) {
+    } catch  {
         res.writeHead(500).end()
     }
 
 }
 
 function getTasks(req, res){
-    const tasks = database.get()
-
-    res.end(JSON.stringify(tasks))
+    try {
+        const tasks = database.get()
+        res.end(JSON.stringify(tasks))
+    } catch  {
+        res.writeHead(500).end()
+    }
 }
 
 function updateTasks(req, res){
@@ -90,9 +71,12 @@ function updateTasks(req, res){
         }
     })
 
-    database.update(updateTasks)
-
-    res.writeHead(201).end()
+    try {
+        database.update(updateTasks)
+        res.writeHead(201).end()
+    } catch {
+        res.writeHead(500).end()
+    }
     
 }
 
@@ -105,9 +89,13 @@ function deleteTasks(req, res){
     if(index < 0)return res.writeHead(404).end(JSON.stringify({message: "Task Não encontrada!!!"}))
 
     tasks.splice(index, 1)
-    database.update(tasks)
-
-    res.writeHead(200).end()
+    
+    try {
+        database.update(tasks)
+        res.writeHead(200).end()
+    } catch{
+        res.writeHead(500).end()
+    }
 }
 
 function done(req, res){
@@ -130,3 +118,35 @@ function done(req, res){
     res.writeHead(201).end()
 
 }
+
+
+
+function csv(req, res){
+    try {
+        const filePath = new URL('./csv/tasks.csv', import.meta.url)
+        const readStream = fs.createReadStream(filePath)
+
+        const parser = parse({
+            delimiter: ',', 
+            columns: true,
+        })
+
+        parser.on('readable', () => {
+            let task
+            while ((task = parser.read())) {
+                const newTask = taskFactory(task.title, task.description)
+                database.insert(newTask)
+            }
+        })
+
+        parser.on('error', (err) => {
+            console.log(err)
+        })
+
+        readStream.pipe(parser)
+        res.writeHead(201).end()
+    } catch  {
+        res.writeHead(500).end()
+    }
+}
+

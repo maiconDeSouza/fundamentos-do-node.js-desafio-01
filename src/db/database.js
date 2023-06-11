@@ -13,6 +13,14 @@ export class Database{
         })
     }
 
+    #read(){
+        fs.readFile(dataBasePath, 'utf8').then(data => {
+            this.#database = JSON.parse(data)
+        }).catch(() => {
+            this.#database = []
+        })
+    }
+
     #parsist(){
         fs.writeFile(dataBasePath, JSON.stringify(this.#database, null, 2))
     }
@@ -23,10 +31,12 @@ export class Database{
     }
 
     get(){
+        this.#read()
         return this.#database
     }
 
     update(tasks){
         fs.writeFile(dataBasePath, JSON.stringify(tasks, null, 2))
+        this.#parsist()
     }
 }
